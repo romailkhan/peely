@@ -2,20 +2,38 @@
 
 import chalk from "chalk";
 import { createCli } from "./cli.js";
+import { runReview } from "./reviewer/review.js";
 
-function main() {
+async function main() {
   const { target, options } = createCli();
 
   console.log(chalk.yellow.bold("\n🍌 Peely — AI Code Reviewer\n"));
-  console.log(chalk.dim(`Target:    ${target}`));
-  console.log(chalk.dim(`Model:     ${options.model}`));
-  console.log(chalk.dim(`Max files: ${options.maxFiles}`));
-  if (options.full) console.log(chalk.dim("Mode:      full codebase scan"));
-  if (options.output) console.log(chalk.dim(`Output:    ${options.output}`));
-  console.log();
 
-  // TODO: wire up review pipeline in later steps
-  console.log(chalk.gray("Review pipeline not yet implemented."));
+  try {
+    const { result, context } = await runReview(target, options);
+
+    // TODO: replace with rich terminal output
+    console.log(chalk.bold("\n--- Review Results ---\n"));
+    console.log(chalk.bold("Target: ") + context.label);
+    console.log(chalk.bold("Score:  ") + result.overallScore + "/10");
+    console.log(chalk.bold("Summary: ") + result.summary);
+    console.log(chalk.bold(`\nFindings (${result.findings.length}):\n`));
+    for (const f of result.findings) {
+      const sev = f.severity === "critical" ? chalk.red(f.severity)
+        : f.severity === "warning" ? chalk.yellow(f.severity)
+        : f.severity === "suggestion" ? chalk.blue(f.severity)
+        : chalk.gray(f.severity);
+      console.log(`  [${sev}] ${chalk.bold(f.title)}`);
+      console.log(`    File: ${f.file}${f.line ? `:${f.line}` : ""}`);
+      console.log(`    ${f.description}`);
+      if (f.suggestion) console.log(`    ${chalk.green("Fix:")} ${f.suggestion}`);
+      console.log();
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(chalk.red("\nError: ") + message);
+    process.exit(1);
+  }
 }
 
 main();
